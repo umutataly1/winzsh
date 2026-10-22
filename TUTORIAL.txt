@@ -1,0 +1,387 @@
+zsh for Windows - Tutorial for Windows users
+============================================
+
+This tutorial is for people who know Windows and cmd.exe but have never
+used zsh (or any Unix shell) before.  It gets you productive quickly and
+explains the handful of things that are different from what you are used
+to.  If you already know zsh on Linux, skip to section 6.
+
+
+1. Starting the shell
+---------------------
+
+Open a console window (Windows Terminal, Command Prompt, or PowerShell)
+and run:
+
+  zsh
+
+The prompt changes to something like "ARTIX% " and you are in zsh.  Type
+"exit" to leave.  If you have a .zshrc in your home directory, it is
+read now; otherwise you get the default prompt.
+
+Your home directory is C:/Users/<your name> (forward slashes).  zsh uses
+forward slashes everywhere; backslashes work when you type them, but
+"C:/Users/me" is what the shell reports back.
+
+Try a few things:
+
+  print -r -- hello
+  print -r -- $((2**10))
+  print -r -- $ZSH_VERSION
+
+print is zsh's built-in echo.  $((...)) does arithmetic.  $ZSH_VERSION
+is a variable.  Variables are referenced with $, like in batch files
+(%VAR% in cmd, $env:VAR in PowerShell).
+
+
+2. The big surprise: cmd commands do not work out of the box
+-----------------------------------------------------------
+
+If you type "dir" you get "zsh: command not found: dir".  If you type
+"copy", "del", "cls", "type", "move", "ren", "md", "rd", "echo", you
+get the same.  zsh is a Unix shell: it does not know about cmd.exe
+builtins.
+
+This is the single biggest source of confusion for Windows users, so it
+is worth understanding why.  zsh looks for commands in the directories
+listed in $PATH.  cmd.exe's builtins (dir, copy, del, ...) are not
+files on disk; they live inside cmd.exe itself.  zsh cannot call them
+because they are not programs.  PowerShell cmdlets are the same story.
+
+What you CAN do immediately:
+
+  * Run Windows programs by name.  notepad, calc, cmd, powershell,
+    git, python, code, winget, tasklist, taskkill, ipconfig, ping,
+    netstat, ... all work as long as they are on PATH.  Extensionless
+    names are completed through PATHEXT, so "notepad" runs notepad.exe.
+
+  * Run anything via cmd /c:
+
+      cmd /c dir
+      cmd /c dir /b
+      cmd /c type file.txt
+      cmd /c copy a.txt b.txt
+      cmd /c del file.txt
+      cmd /c cls
+      cmd /c echo hello
+
+    This is the escape hatch.  It is verbose but always works, and it
+    is the recommended way to invoke cmd builtins from scripts.
+
+  * Use zsh's own builtins.  zsh has print, read, echo, test, [[, for,
+    while, if, case, functions, arrays, parameter expansion, globbing,
+    redirections, pipelines, background jobs and wait.  Many things you
+    would do with cmd you can do directly in zsh, often more concisely.
+
+  * Load zsh's file builtins:
+
+      zmodload zsh/files
+
+    This gives you zf_mv, zf_rm, zf_rmdir, zf_mkdir, zf_ln, zf_chmod,
+    zf_chown, zf_chgrp and zf_sync.  They are real implementations of
+    the Unix file operations, built into the shell, so they need no
+    external program.  The INSTALLATION.txt example aliases mv to zf_mv
+    so that compinit can save its dump file.
+
+If you find yourself typing "cmd /c dir" a lot, that is a sign you
+should install the busybox win64 port (section 7).  It gives you "ls",
+"cat", "grep", "find", "sort", "head", "tail", "wc", "cut", "tr",
+"xargs", "tar" and dozens more as native Windows programs, with no
+emulation layer.
+
+
+3. Running scripts: why you type "./script.py" and not "script.py"
+-----------------------------------------------------------------
+
+On Windows, if a file is in the current directory and you type its name,
+Windows runs it.  zsh does not do this, and the difference is
+deliberate.
+
+In zsh (and in every Unix shell), the current directory is NOT in PATH.
+When you type a command name, zsh searches the directories in PATH; it
+does not look in the current directory.  This is a security measure:
+on Unix, a stray file called "ls" in the current directory could
+otherwise hijack the real "ls".
+
+So:
+
+  * "script.py" looks for "script.py" in PATH.  If it is not there,
+    you get "command not found".
+
+  * "./script.py" runs the file in the current directory.  The "./"
+    says "look here, in this directory".
+
+  * "C:/path/to/script.py" runs it by absolute path.
+
+  * If the script has a shebang line (#!C:/Python312/python.exe) and
+    is executable, you can run it directly as "./script.py".  Without
+    a shebang, you run it through the interpreter: "python script.py".
+
+  * On Windows, file extensions matter: "script.py" is just a text
+    file to zsh unless it has a shebang or you invoke the interpreter.
+    There is no PATHEXT handling for the shell's own command lookup
+    (PATHEXT is only used when zsh searches PATH for an extensionless
+    name).
+
+  * If you want the current directory on PATH (not recommended, but
+    possible), add it to PATH in .zshrc:
+
+      path=(. $path)
+
+    This is the same as on Unix.  Most people do not do this.
+
+  * Directory separators: use forward slashes.  "cd C:/Users/me" works;
+    "cd C:\Users\me" also works (zsh accepts backslashes on input) but
+    reports back with forward slashes.
+
+  * Drive letters: "cd D:/" changes to the D drive.  "cd /" goes to
+    the root of the current drive (C:/ by default).
+
+  * UNC paths work: "cd //server/share".
+
+
+4. Navigation
+------------
+
+  cd C:/Users/me/Documents
+  cd ~                    # home directory
+  cd -                    # previous directory
+  cd ..                   # up one level
+  pwd                     # print working directory
+  ls                      # if busybox is installed; otherwise "cmd /c dir"
+
+  pushd C:/some/dir       # save current dir and cd
+  popd                    # go back
+
+  ~ expands to your home directory, so ~/Documents means
+  C:/Users/<you>/Documents.
+
+  Globbing works the Unix way: "*.txt" matches all .txt files,
+  "**/*.py" matches .py files in any subdirectory.  zsh has some of
+  the most powerful globbing of any shell; see "man zshexpn" (or the
+  zsh documentation) for the full set.
+
+
+5. Aliases
+----------
+
+Aliases are the easiest way to make zsh feel like home.  Add them to
+.zshrc:
+
+  # shortcuts for Windows programs
+  alias n=notepad
+  alias e=explorer
+  alias c=clip          # copy stdin to clipboard (Windows builtin)
+
+  # cmd builtins you miss
+  alias dir='cmd /c dir'
+  alias cls='cmd /c cls'
+  alias type='cmd /c type'
+  alias copy='cmd /c copy'
+  alias del='cmd /c del'
+  alias move='cmd /c move'
+  alias md='cmd /c md'
+  alias rd='cmd /c rd'
+
+  # if busybox is on PATH, these are redundant, but harmless
+  alias ls='busybox ls'
+  alias cat='busybox cat'
+  alias grep='busybox grep'
+
+  # common zsh habits
+  alias ll='ls -la'
+  alias ..='cd ..'
+  alias ...='cd ../..'
+
+Aliases are expanded when the command is read, so they can stand in for
+anything.  For more complex logic, use a function instead:
+
+  mkcd() { mkdir -p "$1" && cd "$1"; }
+
+Functions go in .zshrc too, or in a file under a directory on $fpath.
+
+
+6. History
+----------
+
+  HISTFILE=~/.zsh_history
+  HISTSIZE=10000
+  SAVEHIST=10000
+  setopt HIST_IGNORE_DUPS SHARE_HISTORY
+
+Up-arrow recalls the previous command.  Ctrl+R searches history
+incrementally.  With SHARE_HISTORY, commands typed in one shell are
+available in others immediately.
+
+History expansion: "!!" repeats the last command, "!ls" runs the last
+command starting with "ls", "!$" is the last argument of the previous
+command.  These are the same as in bash and are explained in any zsh
+tutorial.
+
+
+7. Setting up busybox win64 (recommended)
+-----------------------------------------
+
+This is the single biggest quality-of-life improvement for a Windows
+zsh user.  Do it.
+
+  Step 1: download
+
+    Go to https://frippery.org/busybox/ and download busybox64u.exe
+    (the "u" variant handles UTF-8 file names).  Save it somewhere
+    permanent, for example:
+
+      C:\Program Files\busybox\busybox64u.exe
+
+  Step 2: put it on PATH
+
+    Add C:\Program Files\busybox to your PATH (same way you added
+    zsh's bin directory).  Close and reopen your console.
+
+  Step 3: verify
+
+    busybox --list
+
+    This prints all the applets built into your binary.  You should
+    see ls, cat, grep, sed, awk, find, sort, head, tail, wc, cut, tr,
+    xargs, tar, wget, vi, and many more.
+
+  Step 4: use it
+
+    busybox ls -la
+    busybox cat file.txt
+    busybox grep pattern file
+    busybox find . -name "*.txt"
+    busybox sed 's/foo/bar/' file
+    busybox awk '{print $1}' file
+    busybox sort file
+    busybox head -5 file
+    busybox tail -f logfile
+    busybox wc -l file
+    busybox tar -czf archive.tar.gz dir/
+
+  Step 5 (optional): shims
+
+    If you want to type "ls" instead of "busybox ls", create small
+    wrapper files in a directory on PATH (for example
+    C:\Users\<you>\bin):
+
+      ls.cmd   containing:  @busybox ls %*
+      cat.cmd  containing:  @busybox cat %*
+      grep.cmd containing:  @busybox grep %*
+      ... and so on for the ones you use most.
+
+    Or, in .zshrc, use aliases (section 5) instead of shims.  Aliases
+    are cleaner because they live in one file and do not create
+    extra files on disk.
+
+  Step 6 (optional): completion for busybox
+
+    With compinit loaded, "busybox <TAB>" completes to the applet
+    names.  If you create shims, they complete as ordinary commands.
+
+Why busybox and not something else:
+
+  * Cygwin / MSYS2 give you a full Unix toolset, but they come with
+    a POSIX emulation DLL (cygwin1.dll / msys-2.0.dll) and a separate
+    filesystem layout.  Mixing them with this zsh is possible but
+    defeats the purpose of a native port.
+
+  * Git for Windows ships bash and a set of Unix tools, but they are
+    MSYS2-based and have the same DLL dependency.
+
+  * Windows has no built-in equivalents for most of these tools.
+    PowerShell has Get-ChildItem (ls), Get-Content (cat), Select-String
+    (grep), but the syntax and output format differ.
+
+  * busybox win64 is a single native binary with no DLL dependency,
+    matching the philosophy of this zsh port.  Together they give you
+    a usable Unix-like environment on Windows with no emulation layer
+    at all.
+
+  * If you need a full Linux environment (apt, gcc, make, ...), use
+    WSL.  If you need a Unix toolchain for building software, use
+    MSYS2.  If you want a fast, native zsh plus the everyday Unix
+    tools, zsh + busybox is the answer.
+
+
+8. Completion
+-------------
+
+The completion system is included.  Put this near the end of .zshrc:
+
+  zmodload zsh/files
+  alias mv=zf_mv
+  autoload -Uz compinit && compinit
+
+The first time, compinit scans the function library, which takes a few
+seconds, and writes a dump file (~/.zcompdump).  Later shells read the
+dump and start quickly.  If "mv" is not available, compinit still
+completes the first time but cannot save the dump, so every new shell
+rescans the library; the alias above avoids that by using zsh's own
+built-in mv (zf_mv).
+
+After compinit, Tab completion works for commands, options, file names
+and so on.  The share\zsh\site-functions directory is in the default
+function path: drop your own completion functions there (for example
+_mytool for a tool called mytool), or add a directory to $fpath in
+.zshrc.
+
+
+9. Tips for Windows users
+-------------------------
+
+  * Use forward slashes in paths.  "cd C:/Users/me" works everywhere.
+    Backslashes work when you type them, but zsh reports back with
+    forward slashes.
+
+  * Quote paths with spaces: cd "C:/Program Files/zsh".
+
+  * Windows programs can be named without their extension: "notepad",
+    "code", "python", "git" all work through PATHEXT.
+
+  * To open a file in its default application: "start file.txt" or
+    "explorer file.txt".
+
+  * To copy to the clipboard: "print -r -- text | clip" (clip is a
+    Windows builtin).  To paste, use the terminal's paste shortcut
+    (Ctrl+Shift+V in Windows Terminal).
+
+  * Ctrl+C interrupts the running command and returns to the prompt;
+    it does not kill the shell.  $? is 130 afterwards, as on Unix.
+
+  * Ctrl+Z does NOT suspend (there is no job control on Windows).
+    Use "cmd &" for background jobs and "wait" to wait for them.
+
+  * The console is switched to UTF-8 while zsh runs and restored when
+    it exits.  VT escape sequences are used for output, which Windows
+    Terminal and the standard console both understand.
+
+  * If a command is not found, check PATH: "print -l -- $path".  The
+    entries should include C:/Program Files/zsh/bin and, if you
+    installed busybox, its directory.
+
+  * If completion does not work, check that compinit was run and that
+    $fpath contains ...\share\zsh\functions\Completion\Base.  If you
+    moved the installation, see INSTALLATION.txt section 7.
+
+
+10. Where to go next
+--------------------
+
+  * INSTALLATION.txt - installation guide, first-time configuration,
+    completion, building from source, troubleshooting.
+
+  * BUGS.txt - known issues and limitations.
+
+  * Src/win32/README.md - design notes and internals.
+
+  * The zsh documentation: https://zsh.sourceforge.io/Doc/
+    (or "man zsh" if you have a Unix man-page viewer).
+
+  * The busybox win64 port: https://frippery.org/busybox/
+
+  * OpenCode (the tool used to build this port):
+    https://opencode.ai
+
+Enjoy the shell.

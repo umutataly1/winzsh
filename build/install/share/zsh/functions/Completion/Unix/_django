@@ -1,0 +1,185 @@
+#compdef django-admin.py django-admin manage.py
+
+local curcontext="$curcontext" state line expl ret=1
+
+if [[ "$service" = "manage.py" && ! -x ./manage.py ]]; then
+  _default
+  return
+fi
+
+declare -ga common_args
+common_args=(
+  '--help[display help information]'
+  '--version[display version information]'
+  '--pythonpath=[directory to add to the Python path]:directory:_directories -W / -P /'
+  '--settings=[python path to settings module]:settings'
+  '--traceback[print traceback on exception]'
+)
+
+typeset -A opt_args
+_arguments -C \
+  $common_args \
+  ':subcommand:->subcommand' \
+  '*::options:->options' && ret=0
+
+case $state in
+  subcommand)
+    local -a subcommands
+    subcommands=()
+    for cmd in $(./manage.py --help 2>&1 >/dev/null | \
+        awk -v drop=1 '
+            /^Available subcommands/ { drop = 0; next }
+            drop                     { next }
+            /^\[/                    { next }
+            /^[[:space:]]/ {
+                sub(/^[[:space:]]+/, "")
+                print
+            }
+        ')
+    do
+        subcommands+=($cmd)
+    done
+
+    _describe -t subcommands 'django admin subcommand' subcommands && ret=0
+    ;;
+
+  options)
+    declare -a args
+    args=(
+      $common_args
+    )
+
+    declare -a verbosity
+    verbosity=(
+      '--verbosity=:verbosity:(0 1 2):[verbosity level; 0=minimal, 1=normal, 2=all]'
+    )
+
+    declare -a locale
+    locale=(
+      {-l,--locale=}'[locale to process (default: all)]:locale'
+    )
+
+    declare -a noinput
+    noinput=(
+      '--noinput[do not prompt for any input]'
+    )
+
+    port_opts={,0.0.0.0\\:,127.0.0.1\\:}800{0,1}
+
+    _appname () {
+      local settings=""
+      if [ -e settings.py ]; then
+          settings="settings.py"
+      elif [ -n "${DJANGO_SETTINGS_MODULE}" ]; then
+          settings="${DJANGO_SETTINGS_MODULE}"
+      else
+        return 0
+      fi
+
+      _wanted appname expl appname compadd - $(command \
+        sed -n "/INSTALLED_APPS\s*=\s*(/,/)/p" ${settings} | \
+        sed -n "s/^\s*'\(.*\.\)*\(.*\)'.*$/\2 /pg")
+    }
+
+    case $words[1] in
+      compilemessages)
+        args+=$locale
+        ;;
+
+      createcachetable)
+        args+=':tablename:'
+        ;;
+
+      createsuperuser)
+        args+=(
+          $noinput
+          '--username[username for the superuser]:username'
+          '--email[email address for the superuser]:email'
+        )
+        ;;
+
+      dumpdata)
+        args+=(
+          '--format=:format:(xml python json yaml):[serialization format for the fixtures]'
+          '--indent=[indent level to use when pretty-printing]:indent'
+          {-e,--exclude=}'[app to exclude]:exclude:_appname'
+        )
+        ;;
+
+      flush)
+        args+=$verbosity
+        ;;
+
+      loaddata)
+        args+=(
+          $verbosity
+          '*:fixture:'
+        )
+        ;;
+
+      makemessages)
+        args+=(
+          $locale
+          $verbosity
+          {-d,--domain=}'[domain of the message files]:domain [django]:(django djangojs)'
+          {-a,--all}'[re-examine all code and templates]'
+          {-e,--extensions=}'[file extension(s) to examine]:extension [html]'
+        )
+        ;;
+
+      runserver|runserver_plus)
+        args+=(
+          '--noreload[do not use auto-reloader]'
+      	  '--adminmedia=[directory from which to serve admin media]:directory:_directories'
+          ':port:('$port_opts')'
+        )
+        ;;
+
+      shell)
+        args+='--plain[use plain Python, not IPython]'
+        ;;
+
+      reset|sql*)
+        args+='*:appname:_appname'
+        ;;
+
+      startapp)
+        args+=':new_appname:'
+        ;;
+
+      syncdb)
+        args+=(
+          $verbosity
+          $noinput
+        )
+        ;;
+
+      "test")
+        args+=(
+          $verbosity
+          $noinput
+         '*:appname:_appname'
+        )
+        ;;
+
+      testserver)
+        args+=(
+          $verbosity
+          '--addrport=:addrport:('$port_opts'):[port number or ipaddr:port to run server on]'
+          '*:fixture:'
+        )
+        ;;
+
+      validate|runfcgi)
+        ;;
+
+      *)
+        _files
+        ;;
+    esac
+
+    _arguments -C $args && ret=0
+    ;;
+esac
+
+return ret

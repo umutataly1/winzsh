@@ -1,0 +1,380 @@
+zsh for Windows - Installation Guide
+====================================
+
+This package contains zsh built as a native 64-bit Windows program
+(zsh.exe).  It does not need WSL, Cygwin, MSYS2, a Unix emulation layer
+or a POSIX compatibility DLL: the shell talks to Windows and to the
+Microsoft C runtime directly.  Everything zsh expects from a Unix system
+(processes, signals, the terminal, file permissions, ...) is implemented
+on top of Win32.
+
+
+1. Requirements
+---------------
+
+  * 64-bit Windows 10 or Windows 11 (Windows Server 2016 or later also
+    works).
+  * The Universal C Runtime (UCRT), which is part of Windows 10 and 11.
+  * About 10 MB of disk space.
+  * Administrator rights only if you install into "C:\Program Files".
+
+zsh.exe is statically linked and imports nothing but KERNEL32.dll,
+bcrypt.dll and the api-ms-win-crt-*.dll files.  There is no Visual C++
+redistributable to install, no DLL of ours to copy and no other package
+it depends on.
+
+
+2. What is in the package
+-------------------------
+
+  bin\zsh.exe                      the shell
+  share\zsh\functions\...          autoloadable shell functions
+  share\zsh\functions\Completion\  the completion system (compinit)
+  share\zsh\site-functions\        empty directory for your own functions
+
+The layout matters: the installation prefix is compiled into zsh.exe.
+A binary built with the default prefix expects to find its function
+library under
+
+  C:\Program Files\zsh\share\zsh\functions
+
+If you keep the files together in that directory, everything is found
+automatically.  Section 7 explains what to do if you want a different
+location.
+
+
+3. Installing
+-------------
+
+  a. Copy the contents of the package (the bin and share directories)
+     to C:\Program Files\zsh, so that you end up with
+
+       C:\Program Files\zsh\bin\zsh.exe
+       C:\Program Files\zsh\share\zsh\functions\...
+       C:\Program Files\zsh\share\zsh\site-functions\
+
+  b. Add the bin directory to your PATH:
+
+       - Windows 11: Settings -> System -> About -> Advanced system
+         settings -> Environment Variables
+       - Windows 10: Control Panel -> System -> Advanced system
+         settings -> Environment Variables
+
+     Select "Path" under "User variables" (or "System variables" if you
+     want zsh for every user), choose Edit, then New, and enter
+
+       C:\Program Files\zsh\bin
+
+     Alternatively, from a command prompt:
+
+       setx PATH "%PATH%;C:\Program Files\zsh\bin"
+
+     (setx affects new windows only; close and reopen your terminal.
+     It also has a 1024 character limit, so use the Environment
+     Variables dialog if your PATH is already long.)
+
+  c. Open a new Windows Terminal, Command Prompt or PowerShell window
+     and run:
+
+       zsh
+
+     The prompt changes to "hostname% " and you are in zsh.  Type
+     "exit" to leave.
+
+You can also start it without changing PATH:
+
+  "C:\Program Files\zsh\bin\zsh.exe"
+
+Notes:
+
+  * Run zsh from a console window.  Double-clicking zsh.exe in Explorer
+    opens a console that closes again as soon as the shell exits, so it
+    looks like nothing happened.
+  * The console is switched to UTF-8 while zsh runs and restored when it
+    exits.  VT escape sequences are used for output, which Windows
+    Terminal and the standard console both understand.
+  * Windows programs can be named without their extension, as in cmd.exe:
+    "cmd", "notepad" and so on are found through PATHEXT.  The usual form
+    with ".exe" works as well.
+
+
+4. Checking the installation
+----------------------------
+
+From a normal command prompt:
+
+  zsh -c "print -r -- $ZSH_VERSION"
+  zsh -c "print -l -- $fpath"
+
+The first line prints the version, the second the function search path.
+The entries should point into the directory you installed to.
+
+A quick functional test:
+
+  zsh -c "print -r -- $((2**10))"
+  zsh -c "for i in 1 2 3; do print -r -- $i; done"
+  zsh -c "autoload -Uz compinit; print -r -- $+functions[compinit]"
+
+1024, the numbers 1 to 3 and 1 should come out.  The last one proves
+that the function library was found.  If you run these from PowerShell
+rather than from cmd.exe, use single quotes around the program text
+(PowerShell would otherwise expand $((2**10)) and $+functions itself):
+
+  zsh -c 'print -r -- $((2**10))'
+
+
+5. First-time configuration
+---------------------------
+
+zsh reads its start-up files from your home directory:
+
+  C:\Users\<your name>\.zshenv     always, first
+  C:\Users\<your name>\.zprofile   login shells
+  C:\Users\<your name>\.zshrc      interactive shells
+  C:\Users\<your name>\.zlogin     login shells, after .zshrc
+  C:\Users\<your name>\.zlogout    login shells, on exit
+
+There are no system-wide /etc/zsh* files in this port.  If the
+environment variable ZDOTDIR is set, its directory is used instead of
+the home directory.
+
+$HOME is taken from the HOME environment variable if it is set,
+otherwise from USERPROFILE, so normally it is C:/Users/<your name>.
+Paths inside the shell are written with forward slashes; backslashes
+are accepted when you type them, but "C:/Users/me" is the form zsh
+reports back.
+
+Other environment variables worth knowing:
+
+  * USERNAME is set by Windows and is used for $USERNAME.
+  * USER is usually not set on Windows, so scripts that rely on it may
+    want:   export USER="$USERNAME"
+  * PATH is a normal Windows PATH.  The semicolon-separated value is
+    split into the $path array; assigning to $path (or $PATH) works in
+    both directions.
+
+A minimal .zshrc:
+
+  # history
+  HISTFILE=~/.zsh_history
+  HISTSIZE=10000
+  SAVEHIST=10000
+  setopt HIST_IGNORE_DUPS SHARE_HISTORY
+
+  # prompt
+  PS1='%n@%m:%~%# '
+
+  # the editing keys of Windows terminals (zsh does not bind them itself)
+  bindkey '^[[H'  beginning-of-line
+  bindkey '^[[F'  end-of-line
+  bindkey '^[[3~' delete-char
+
+  # completion (see the next section)
+  zmodload zsh/files
+  alias mv=zf_mv
+  autoload -Uz compinit && compinit
+
+If you are used to a full zsh setup, your existing .zshrc will mostly
+work; files simply live under C:/Users/<your name> instead of /home.
+
+The Home, End and Delete keys send the sequences ESC [ H, ESC [ F and
+ESC [ 3 ~.  zsh does not bind them by default, not on Unix either, so
+the three bindkey lines above are what makes them work; without them
+the keys only produce a beep.  The cursor keys (arrows, PgUp, PgDn) and
+the function keys are bound by zsh itself.
+
+
+6. Completion (compinit)
+------------------------
+
+The completion system is included.  Put this near the end of .zshrc:
+
+  zmodload zsh/files
+  alias mv=zf_mv
+  autoload -Uz compinit && compinit
+
+The first time, compinit scans the function library, which takes a few
+seconds, and writes a dump file (~/.zcompdump).  Later shells read the
+dump and start quickly.  If "mv" is not available, compinit still
+completes the first time but cannot save the dump, so every new shell
+rescans the library; the alias above avoids that by using zsh's own
+built-in mv (zf_mv).  You can make the other file builtins available in
+the same way, for example:
+
+  alias rm=zf_rm mkdir=zf_mkdir
+
+You do not need "compinit -u" to skip the security check: the emulated
+file modes make the check succeed.  Windows permissions are ACLs, so
+compaudit's POSIX ownership/mode test is only an approximation.
+
+After compinit, Tab completion works for commands, options, file names
+and so on.  The share\zsh\site-functions directory is in the default
+function path: drop your own completion functions there (for example
+_mytool for a tool called mytool), or add a directory to $fpath in
+.zshrc.
+
+
+7. Installing to a different directory
+--------------------------------------
+
+The prefix is compiled into zsh.exe, so moving the files somewhere else
+makes the shell look for its functions in the wrong place.  Symptoms
+are messages such as "function definition file not found", or compinit
+finding no completion functions.
+
+If you want the default prefix to be different, build with it (see
+section 9):
+
+  ZSH_WIN32_PREFIX='D:/tools/zsh' make -f Src/win32/Makefile \
+      BUILDDIR=$PWD/build install
+
+Only forward slashes are needed; backslashes are converted.
+
+If you already have a binary built for another prefix, you can repair
+the function search path in .zshenv or .zshrc:
+
+  zshroot=C:/tools/zsh
+  fpath=($zshroot/share/zsh/site-functions \
+         $zshroot/share/zsh/functions/*(N-/) \
+         $zshroot/share/zsh/functions/Completion/*(N-/))
+
+
+8. Uninstalling
+---------------
+
+  a. Remove the installation directory (C:\Program Files\zsh).
+  b. Remove C:\Program Files\zsh\bin from PATH.
+  c. Optionally delete your personal files:
+       C:\Users\<you>\.zshrc, .zshenv, .zprofile, .zlogin, .zlogout,
+       .zsh_history, .zcompdump*
+
+
+9. Building from source
+-----------------------
+
+The port builds with any mingw-w64 style cross compiler.  It was
+developed with llvm-mingw (UCRT) and needs Python 3.  There is no
+configure script; Src/win32/gen.py generates the files that configure
+would normally produce and Src/win32/config.h holds the configuration.
+
+On Linux (cross-compiling):
+
+  export PATH=/path/to/llvm-mingw/bin:$PATH
+  cd zsh
+  make -f Src/win32/Makefile BUILDDIR=$PWD/build
+  make -f Src/win32/Makefile BUILDDIR=$PWD/build install
+
+or, from the top of this package, simply:
+
+  ./build.sh              # builds build/zsh.exe
+  ./build.sh --install    # also stages build/install
+  ./build.sh --clean      # starts from scratch
+
+(In this workspace llvm-mingw is installed in $HOME/.local/bin/llvm-mingw,
+with symlinks for the x86_64-w64-mingw32-* tools in $HOME/.local/bin, so
+"export PATH=$HOME/.local/bin:$PATH" is enough.  build.sh adds that to
+PATH by itself.)
+
+This produces:
+
+  build/zsh.exe                 the executable
+  build/install/...             a staged tree ready to copy to Windows
+
+Copy the contents of build/install to C:\Program Files\zsh (or to the
+prefix you built for).  "make install" only stages files; it does not
+write to C:\ from Linux.
+
+To test the result under Wine:
+
+  wine build/zsh.exe -f -c 'print -r -- $ZSH_VERSION'
+  wine build/zsh.exe -f -c 'print -r -- $((2**10))'
+
+Interactive use needs a real console.  Under Wine that means a pty; see
+Src/win32/README.md for how the tests drive it.  Note that the console of
+Wine does not understand the escape sequences of the line editor and loses
+track of the cursor position; the port works around that by widening the
+console buffer (see "The console of Wine does not understand escape
+sequences" in that file).  Nothing of this is visible on Windows itself,
+where the console interprets the sequences properly.
+
+A complete build from scratch takes about 30 seconds on a typical
+machine.  "make -f Src/win32/Makefile clean BUILDDIR=..." removes the
+build directory.
+
+More detail on the design and on the internals is in
+Src/win32/README.md.
+
+
+10. Known limitations
+---------------------
+
+  * No job control.  There are no Unix process groups or signals like
+    SIGTSTP, so Ctrl+Z, "fg", "bg" and "%1" are not available.
+    Background jobs ("cmd &") and "wait" do work.
+  * No external utilities.  This is the shell, not a collection of Unix
+    tools: ls, cat, grep and friends do not exist unless something else
+    on the machine provides them.  zsh's file builtins are available
+    after "zmodload zsh/files": zf_mv, zf_rm, zf_rmdir, zf_mkdir, zf_ln,
+    zf_chmod, zf_chown, zf_chgrp and zf_sync.
+  * No dynamic modules.  Everything is linked into zsh.exe.  The modules
+    included are zsh/zle, zsh/zleparameter, zsh/complete, zsh/complist,
+    zsh/computil, zsh/compctl, zsh/parameter, zsh/param/private,
+    zsh/ksh93, zsh/random, zsh/hlgroup, zsh/zutil, zsh/sched,
+    zsh/rlimits, zsh/watch, zsh/datetime, zsh/files, zsh/mathfunc,
+    zsh/nearcolor, zsh/stat, zsh/system, zsh/zselect and zsh/example.
+    Third-party modules cannot be loaded.
+  * fork() is emulated by starting a new zsh.exe that restores the
+    parent's state.  Subshells, pipelines, command substitution and
+    process substitution all work, but starting one is slower than on
+    Unix, and open file descriptors beyond 0, 1 and 2 do not survive.
+  * String handling is byte based (no MULTIBYTE_SUPPORT), as in a Unix
+    zsh built without multibyte support.  UTF-8 input and output work,
+    and the line editor handles UTF-8 text; ${#string} counts bytes.
+
+
+11. Troubleshooting
+-------------------
+
+"zsh: command not found: ls" (or mv, cat, ...)
+    Expected: Windows does not ship Unix utilities.  Use "cmd /c dir"
+    for listings, or load zsh's own builtins with "zmodload zsh/files",
+    or install a Unix tool collection alongside zsh.
+
+"zsh: command not found: mv" while running compinit
+    Add "zmodload zsh/files; alias mv=zf_mv" before compinit in .zshrc.
+
+completion does not work at all
+    Check that compinit was run ("autoload -Uz compinit && compinit")
+    and that $fpath contains ...\share\zsh\functions\Completion\Base.
+    If you moved the installation, see section 7.
+
+"function definition file not found"
+    Same cause: fpath no longer matches the installation directory.
+
+Every shell start takes several seconds
+    compinit is rebuilding its dump because it cannot write it.  Make
+    sure "mv" (or the zf_mv alias) is available and that
+    C:\Users\<you> is writable.
+
+The window closes immediately
+    Start zsh from an existing console window instead of double
+    clicking the exe.
+
+"The system cannot execute the specified program" (or a bad image error)
+    The binary is 64-bit; it needs 64-bit Windows.  On 32-bit Windows it
+    cannot run.
+
+Paths with spaces
+    They work, both quoted ("C:/Program Files/zsh") and unquoted when
+    they come from variables or globs.  Quote paths you type yourself.
+
+Ctrl+C
+    Interrupts the running command and returns to the prompt; it does
+    not kill the shell.  $? is 130 afterwards, as on Unix.
+
+
+12. More information
+--------------------
+
+Version information: print -r -- $ZSH_VERSION
+Build documentation: Src/win32/README.md in the source tree.
