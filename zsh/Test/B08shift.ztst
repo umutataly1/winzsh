@@ -1,0 +1,51 @@
+# Test the shift builtin.
+
+%test
+
+  set -- one two three four five six seven eight nine ten
+  shift
+  print $*
+  shift 2
+  print $*
+  shift -p 3
+  print $*
+  shift -p
+  print $*
+0:shifting positional parameters
+>two three four five six seven eight nine ten
+>four five six seven eight nine ten
+>four five six seven
+>four five six
+
+  array=(yan tan tether mether pip azer sezar akker conter dick)
+  shift 2 array
+  print $array
+  shift array
+  print $array
+  shift -p 3 array
+  print $array
+  shift -p array
+  print $array
+0:shifting array
+>tether mether pip azer sezar akker conter dick
+>mether pip azer sezar akker conter dick
+>mether pip azer sezar
+>mether pip azer
+
+  () { local -a arr=( a b c ); shift 9 arr }
+  () { local -a .tmp.arr=( a b c ); shift 9 .tmp.arr }
+  () { shift 9 argv } a b c
+  () { shift 9 } a b c
+1:shifting more elements than exist in array
+?(anon):shift: shift count must be <= ${#arr}
+?(anon):shift: shift count must be <= ${#.tmp.arr}
+?(anon):shift: shift count must be <= ${#argv}
+?(anon):shift: shift count must be <= $#
+
+  () { local -i i=3;       shift 9 i; print -r - $i }
+  () { local    s=x;       shift 9 s; print -r - $s }
+  () { local -A h=( a b ); shift 9 h; print -r - ${(kv)h} }
+0:shifting non-array
+>3
+>x
+>a b

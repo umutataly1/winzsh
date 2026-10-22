@@ -1,0 +1,115 @@
+# This is a function to dump the definitions for new-style
+# completion defined by 'compinit' in the same directory.  The output
+# should be directed into the "compinit.dump" in the same directory as
+# compinit. If you rename init, just stick .dump onto the end of whatever
+# you have called it and put it in the same directory.  This is handled
+# automatically if you invoke compinit with the option -d.
+#
+# You will need to update the dump every time you add a new completion.
+# To do this, simply remove the .dump file, start a new shell, and
+# create the .dump file as before.  Again, compinit -d handles this
+# automatically.
+
+emulate -L zsh
+setopt bareglobqual extendedglob noshglob
+
+typeset _d_complist _d_fd _d_file
+typeset -a _d_als _d_bks _d_files _d_tmp
+
+_d_file=${_comp_dumpfile-${0:h}/compinit.dump}.$HOST.$$
+[[ $_d_file = //* ]] && _d_file=${_d_file[2,-1]}
+
+[[ -w ${_d_file:h} ]] || return 1
+
+# avoid scanning fpath again if compinit has already done it
+if (( ${+funcstack[(re)compinit]} && $#_i_files )); then
+  _d_files=( $_i_files )
+else
+  _d_files=( ${^fpath:/.}/^([^_]*|*[\;\|\&]*|*~|*.zwc)(NoN) )
+fi
+
+if [[ -n "$_comp_secure" ]]; then
+  local -a _d_wdirs _d_wfiles
+
+  _d_wdirs=( ${^fpath}(NoNf:g+w:,f:o+w:,^u0u${EUID}) )
+  _d_wfiles=( ${^fpath:/.}/^([^_]*|*~|*.zwc)(NoN^u0u${EUID}) )
+
+  (( $#_d_wfiles )) && _d_files=( "${(@)_d_files:#(${(j:|:)_d_wfiles})}"  )
+  (( $#_d_wdirs ))  && _d_files=( "${(@)_d_files:#(${(j:|:)_d_wdirs})/*}" )
+fi
+
+exec {_d_fd}>$_d_file
+
+# Print the number of files used for completion. This is used in compinit
+# to see if auto-dump should re-dump the dump-file.
+
+print "#files: $#_d_files\tversion: $ZSH_VERSION" >& $_d_fd
+
+for 1 in _comps _services _patcomps _postpatcomps _compautos; do
+  print "\n${1}=("
+  printf '  %s %s\n' "${(@Pkvqq)1}"
+  print ")"
+done >& $_d_fd
+
+print >& $_d_fd
+
+# Now dump the key bindings. We dump all bindings for zle widgets
+# whose names start with a underscore.
+# We need both the zle -C's and the bindkey's to recreate.
+# We can ignore any zle -C which rebinds a standard widget (second
+# argument to zle does not begin with a `_').
+
+for 1 in ${(f)${ zle -lL }}; do
+  argv=( ${(z)1} )
+
+  [[ $3 == _* && $5 == _* ]] || continue
+
+  if [[ -z $_d_complist && $4 == .menu-select ]]; then
+    print 'zmodload -i zsh/complist'
+    _d_complist=yes
+  fi
+
+  print -r - $@
+  _d_bks+=( $3 )
+done >& $_d_fd
+
+print >& $_d_fd
+
+for 1 in ${(f)${ bindkey }}; do
+  argv=( ${(z)1} )
+
+  (( ${+_d_bks[(re)$2]} )) &&
+  print -r bindkey $1 $2
+done >& $_d_fd
+
+print >& $_d_fd
+
+# Autoloads: look for all defined functions beginning with `_' (that also
+# exists in fpath: see workers/38547).
+
+_d_tmp=( ${${(M)_d_files:#*/(${(~j.|.)${(f)${ typeset +fm '_*' }}})}:t} )
+
+# print them out:  about five to a line looks neat
+
+printf -v _d_als '  %s %s %s %s %s' $_d_tmp
+_d_als[-1]=${_d_als[-1]%%[[:space:]]##} # purely for aesthetics
+
+print -r autoload -Uz \\ >& $_d_fd
+print -rl - ${(pj< \\\n>)_d_als} >& $_d_fd
+
+print >& $_d_fd
+
+# note Oa to reverse key and val
+printf 'autoload -Uz %s %s\n' "${(@kvOa)_compautos}" >& $_d_fd
+
+print >& $_d_fd
+
+print "typeset -gUa _comp_assocs" >& $_d_fd
+print "_comp_assocs=( ${(qq)_comp_assocs} )" >& $_d_fd
+
+exec {_d_fd}>&-
+
+mv -f -- $_d_file ${_d_file%.$HOST.$$}
+
+unfunction compdump
+autoload -Uz compdump

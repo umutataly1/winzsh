@@ -1,0 +1,98 @@
+# Replace all occurrences of a regular expression in a scalar variable.
+# The variable is modified directly.  Respects the setting of the option
+# RE_MATCH_PCRE, but otherwise sets the zsh emulation mode.
+#
+# Arguments:
+#
+# 1. *name* (not contents) of variable or more generally any lvalue;
+#    expected to be scalar.
+#
+# 2. regular expression
+#
+# 3. replacement string.  This can contain all forms of
+#    $ and backtick substitutions; in particular, $MATCH will be
+#    replaced by the portion of the string matched by the regular
+#    expression. Parsing errors are fatal to the shell process.
+
+if (( $# < 2 || $# > 3 )); then
+  print -ru2 "Usage: $0 <varname> <regexp> [<replacement>]"
+  return 2
+fi
+
+local _regexp_replace_use_pcre=0
+[[ -o re_match_pcre ]] && _regexp_replace_use_pcre=1
+
+emulate -L zsh
+
+local _regexp_replace_subject=${(P)1} \
+      _regexp_replace_regexp=$2 \
+      _regexp_replace_replacement=$3 \
+      _regexp_replace_result \
+      MATCH MBEGIN MEND
+
+local -a match mbegin mend
+
+if (( _regexp_replace_use_pcre )); then
+  # if using pcre, we're using pcre_match and a running offset
+  # That's needed for ^, \A, \b, and look-behind operators to work
+  # properly.
+
+  zmodload zsh/pcre || return 2
+  pcre_compile -- "$_regexp_replace_regexp" && pcre_study || return 2
+
+  local _regexp_replace_offset=0 _regexp_replace_start _regexp_replace_stop _regexp_replace_new ZPCRE_OP
+  local -a _regexp_replace_finds
+
+  while pcre_match -b -n $_regexp_replace_offset -- "$_regexp_replace_subject"; do
+    # we need to perform the evaluation in a scalar assignment so that
+    # if it generates an array, the elements are converted to string (by
+    # joining with the first character of $IFS as usual)
+    _regexp_replace_new=${(Xe)_regexp_replace_replacement}
+
+    _regexp_replace_finds+=( ${(s[ ])ZPCRE_OP} "$_regexp_replace_new" )
+
+    # for 0-width matches, increase offset by 1 to avoid
+    # infinite loop
+    (( _regexp_replace_offset = _regexp_replace_finds[-2] + (_regexp_replace_finds[-3] == _regexp_replace_finds[-2]) ))
+  done
+
+  (( $#_regexp_replace_finds )) || return # no match
+
+  unsetopt multibyte
+
+  _regexp_replace_offset=1
+  for _regexp_replace_start _regexp_replace_stop _regexp_replace_new in "$_regexp_replace_finds[@]"; do
+    _regexp_replace_result+=${_regexp_replace_subject[_regexp_replace_offset,_regexp_replace_start]}$_regexp_replace_new
+    (( _regexp_replace_offset = _regexp_replace_stop + 1 ))
+  done
+  _regexp_replace_result+=${_regexp_replace_subject[_regexp_replace_offset,-1]}
+
+else # no PCRE
+  # in ERE, we can't use an offset so ^, (and \<, \b, \B, [[:<:]] where
+  # available) won't work properly.
+
+  local _regexp_replace_ok=0
+  while [[ $_regexp_replace_subject =~ $_regexp_replace_regexp ]]; do
+    # append initial part and substituted match
+    _regexp_replace_result+=$_regexp_replace_subject[1,MBEGIN-1]${(Xe)_regexp_replace_replacement}
+    # truncate remaining string
+    if (( MEND < MBEGIN )); then
+      # zero-width match, skip one character for the next match
+      (( MEND++ ))
+      _regexp_replace_result+=$_regexp_replace_subject[MBEGIN]
+    fi
+    _regexp_replace_subject=$_regexp_replace_subject[MEND+1,-1]
+    _regexp_replace_ok=1
+    [[ -z $_regexp_replace_subject ]] && break
+  done
+  (( _regexp_replace_ok )) || return
+  _regexp_replace_result+=$_regexp_replace_subject
+fi
+
+# assign result to target variable if at least one substitution was
+# made.  At this point, if the variable was originally array or assoc, it
+# is converted to scalar. If $1 doesn't contain a valid lvalue
+# specification, an exception is raised (exits the shell process if
+# non-interactive).
+: ${(P)1::="$_regexp_replace_result"}
+

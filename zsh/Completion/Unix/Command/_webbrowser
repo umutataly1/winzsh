@@ -1,0 +1,3 @@
+#compdef dillo eolie epiphany falkon konqueror ladybird netrik
+
+_alternative 'files: :_files' 'urls: :_urls'

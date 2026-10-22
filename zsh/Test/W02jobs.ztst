@@ -1,0 +1,336 @@
+# Tests for interactive job control
+
+%prep
+
+  if zmodload zsh/zpty 2> /dev/null; then
+    export ZTST_fd
+    zpty_start() {
+      export PS1= PS2=
+      zpty -d
+      zpty zsh "${(q)ZTST_testdir}/../Src/zsh -fiV +Z"
+      zpty -w zsh 'alias sleep="sleep </dev/null >/dev/null 2>&1"; exec {ZTST_fd}>&-'
+    }
+    zpty_input() {
+      zpty -w zsh "${(F)@}" $'\n'
+    }
+    zpty_line() {
+      local REPLY
+      integer i
+      for (( i = 0; i < ${1:-1}; ++i )); do
+        zpty -r zsh REPLY
+        print -r -- ${REPLY%%($'\r\n'|$'\n')}
+      done
+    }
+    zpty_stop() {
+      # exit twice in case of check_jobs
+      zpty -w zsh $'exit\nexit\n'
+      zpty -r zsh | sed $'/[^[:space:]]/!d; s/\r$//;'
+      zpty -d
+      :
+    }
+  else
+    ZTST_unimplemented='the zsh/zpty module is not available'
+  fi
+
+%test
+
+  zpty_start
+  zpty_input 'setopt no_long_list_jobs'
+  zpty_input ': &'
+  zpty_input 'wait'
+  zpty_stop
+0:job notification with no_long_list_jobs
+*>\[1] [0-9]##
+*>\[1]  + done[[:space:]]##:
+
+  zpty_start
+  zpty_input 'setopt long_list_jobs'
+  zpty_input ': &'
+  zpty_input 'wait'
+  zpty_stop
+0:job notification with long_list_jobs
+*>\[1] [0-9]##
+*>\[1]  + [0-9]## done[[:space:]]##:
+
+  zpty_start
+  zpty_input 'setopt no_hup no_check_jobs'
+  zpty_input 'sleep 3 &'
+  zpty_stop
+0:running job with no_hup + no_check_jobs
+*>\[1] [0-9]##
+
+  zpty_start
+  zpty_input 'setopt no_check_jobs'
+  zpty_input 'sleep 3 &'
+  zpty_stop
+0:running job with no_check_jobs
+*>\[1] [0-9]##
+*>zsh:*SIGHUPed*
+
+  zpty_start
+  zpty_input 'setopt check_jobs no_check_running_jobs'
+  zpty_input 'sleep 3 &'
+  zpty_stop
+0:running job with check_jobs + no_check_running_jobs
+*>\[1] [0-9]##
+*>zsh:*SIGHUPed*
+
+  zpty_start
+  zpty_input 'setopt check_jobs check_running_jobs'
+  zpty_input 'sleep 3 &'
+  zpty_stop
+0:running job with check_jobs + check_running_jobs
+*>\[1] [0-9]##
+*>zsh:*running jobs*
+*>zsh:*SIGHUPed*
+
+#### Races presumed to be associated with zpty mean that
+#### tests involving suspending jobs are not safe.
+##   zpty_start
+##   zpty_input 'setopt check_jobs no_check_running_jobs'
+##   zpty_input 'sleep 3'
+##   sleep 0.1
+##   zpty_input $'\C-z'
+##   zpty_stop
+## 0:suspended job with check_jobs + no_check_running_jobs
+## *>zsh:*(stopped|suspended)*sleep*
+## *>zsh:*(stopped|suspended) jobs*
+## # no 'SIGHUPed' message for suspended jobs
+## 
+##   zpty_start
+##   zpty_input 'setopt check_jobs check_running_jobs'
+##   zpty_input 'sleep 3'
+##   sleep 0.1
+##   zpty_input $'\C-z'
+##   zpty_stop
+## 0:suspended job with check_jobs + check_running_jobs
+## *>zsh:*(stopped|suspended)*sleep*
+## *>zsh:*(stopped|suspended) jobs*
+## # no 'SIGHUPed' message for suspended jobs
+
+  zpty_start
+  zpty_input 'sleep 5 & sleep 4 & sleep 3 &'
+  zpty_input 'jobs'
+  zpty_stop
+0:`jobs` (misc.) with multiple running jobs
+*>\[1] [0-9]##
+*>\[2] [0-9]##
+*>\[3] [0-9]##
+*>\[1]    running*sleep 5*
+*>\[2]  - running*sleep 4*
+*>\[3]  + running*sleep 3*
+*>zsh:*SIGHUPed*
+
+  zpty_start
+  zpty_input 'sleep 3 &'
+  zpty_input 'jobs -l'
+  zpty_input 'jobs -p'
+  zpty_stop
+0:`jobs -l` and `jobs -p` with running job
+*>\[1] [0-9]##
+*>\[1]  + [0-9]## running*sleep*
+*>\[1]  + [0-9]## running*sleep*
+*>zsh:*SIGHUPed*
+
+  zpty_start
+  zpty_input 'sleep 3 &'
+  zpty_input 'jobs -d'
+  zpty_stop
+0:`jobs -d` with running job
+*>\[1] [0-9]##
+*>\[1]  + running*sleep*
+*>\(pwd : ?*\)
+*>zsh:*SIGHUPed*
+
+  zpty_start
+  zpty_input 'sleep 3 &'
+  zpty_input 'jobs -r'
+  zpty_input '(jobs -r)'
+  zpty_input 'print -- -'
+  zpty_input 'jobs -s'
+  zpty_stop
+0:`jobs -r` and `jobs -s` with running job
+*>\[1] [0-9]##
+*>\[1]  + running*sleep*
+*>\[1]  + running*sleep*
+*>-
+*>zsh:*SIGHUPed*
+
+##   zpty_start
+##   zpty_input 'sleep 5'
+##   sleep 0.1
+##   zpty_input $'\C-z'
+##   zpty_input 'jobs -r'
+##   zpty_input 'print -- -'
+##   zpty_input 'jobs -s'
+##   zpty_stop
+## 0:`jobs -r` and `jobs -s` with suspended job
+## *>zsh:*(stopped|suspended)*sleep*
+## *>-
+## *>\[1]  + (stopped|suspended)*sleep*
+## # no 'SIGHUPed' message for suspended jobs
+
+  zpty_start
+  zpty_input 'sleep 10 & sleep 9 & sleep 8 & sleep 7 &'
+  zpty_line 4
+  zpty_input 'kill %4'
+  # Dunno why we need this when checking input...
+  sleep 0.1
+  zpty_line
+  zpty_input 'kill -HUP %3'
+  zpty_line
+  zpty_input 'kill -INT %2'
+  zpty_line
+  zpty_input 'kill -KILL %1'
+  zpty_line
+  zpty_stop
+0:various `kill` signals with multiple running jobs
+*>\[1] [0-9]##
+*>\[2] [0-9]##
+*>\[3] [0-9]##
+*>\[4] [0-9]##
+*>\[4]  ? terminate*sleep*
+*>\[3]  ? hangup*sleep*
+*>\[2]  ? interrupt*sleep*
+*>\[1]  ? kill*sleep*
+
+  zpty_start
+  zpty_input jobs
+  zpty_input '( jobs ); :'
+  zpty_stop
+0:jobs with no jobs
+
+  zpty_start
+  zpty_input 'sleep 2 &; ( jobs ); disown'
+  zpty_stop
+0:jobs in sub-shell with job in parent shell
+*>\[1] <->
+*>\[1]  + * sleep 2*
+
+  zpty_start
+  zpty_input '( sleep 2 &; jobs ); :'
+  zpty_stop
+0:jobs in sub-shell with job in same shell
+*>\[2]  + * sleep 2*
+
+  zpty_start
+  zpty_input 'sleep 2 &; jobs; ( sleep 3 &; jobs ); jobs; disown'
+  zpty_stop
+0:jobs in sub-shell with job in parent + same shell
+*>\[1] <->
+*>\[1]  + * sleep 2*
+*>\[2]  + * sleep 3*
+*>\[1]  + * sleep 2*
+
+  zpty_start
+  zpty_input '( sleep 2 &; sleep 3 &; jobs ); :'
+  zpty_stop
+0:jobs in sub-shell with two jobs in same shell
+*>\[2]  - * sleep 2*
+*>\[3]  + * sleep 3*
+
+  zpty_start
+  zpty_input 'sleep 2 &; sleep 3 &; disown; jobs; disown'
+  zpty_stop
+0:disown current job
+*>\[1] <->
+*>\[2] <->
+*>\[1]  + * sleep 2*
+
+  zpty_start
+  zpty_input disown
+  zpty_stop
+0:disown with no jobs
+>disown: no current job
+
+  zpty_start
+  zpty_input 'sleep 2 &; ( disown ); jobs; disown'
+  zpty_stop
+0:disown in sub-shell with job in parent shell
+*>\[1] <->
+*>disown: can't manipulate jobs in subshell
+*>\[1]  + * sleep 2*
+
+  zpty_start
+  zpty_input '( sleep 3 &; disown; jobs ); :'
+  zpty_stop
+0:disown in sub-shell with job in same shell
+
+  zpty_start
+  zpty_input 'sleep 2 &; ( sleep 3 &; disown; jobs ); jobs; disown'
+  zpty_stop
+0:disown in sub-shell with job in parent + same shell
+*>\[1] <->
+*>\[1]  + * sleep 2*
+
+# @todo apparently testing suspended jobs with zpty is error-prone. see above
+#  zpty_start
+#  zpty_input 'sleep 3 &'
+#  zpty_input 'kill -STOP ${${=${ jobs -p }}[3]}'
+#  zpty_input 'disown'
+#  zpty_stop
+#0:disown with stopped job
+#*>\[1] <->
+#*>\[1] * suspended * sleep 3
+#*>disown: warning: job is suspended*
+
+  zpty_start
+  zpty_input 'sleep 2 &; sleep 3 &; sleep 4 &; disown -a; jobs'
+  zpty_stop
+0:disown -a
+*>\[1] <->
+*>\[2] <->
+*>\[3] <->
+
+  zpty_start
+  zpty_input '( sleep 2 &; sleep 3 &; sleep 4 &; disown -a; jobs ); :'
+  zpty_stop
+0:disown -a in sub-shell
+
+  zpty_start
+  zpty_input 'sleep 2 &; sleep 3 &|; jobs; disown'
+  zpty_input 'sleep 2 &; sleep 3 &!; jobs; disown'
+  zpty_stop
+0:background and disown with &| and &!
+*>\[1] <->
+*>\[1] * sleep 2*
+*>\[1] <->
+*>\[1] * sleep 2*
+
+  zpty_start
+  zpty_input '( fg ); :'
+  zpty_input '( bg ); :'
+  zpty_stop
+0:fg + bg in sub-shell
+*>fg: no job control in this shell
+*>bg: no job control in this shell
+
+# The following test exercises a bug where setprevjob() could pick an
+# internal NOPRINT job (e.g. a builtin's own job entry) as the previous
+# job.  This happened when a function superjob was involved, because the
+# superjob's subjob was excluded but the builtin job was not.
+# The function's child stops itself, triggering the superjob mechanism.
+# Then fg %- resumes the superjob (which exits since the child is done).
+# Afterwards, the remaining sleep job should still be accessible.
+  zpty_start
+  zpty_input "f() { sh -c 'kill -TSTP 0' }"
+  zpty_input 'f'
+  zpty_line			# consume stopped message from f
+  zpty_input 'sleep 100 &'
+  zpty_line			# consume [N] PID
+  zpty_input 'kill -STOP %sleep'
+  zpty_line			# consume stopped message from kill
+  zpty_input 'fg %-'
+  zpty_line			# consume continued message
+  zpty_input 'jobs'
+  zpty_stop
+0:fg %- with function superjob does not pick internal job as previous
+*>zsh:*(stopped|suspended)*
+*>\[[0-9]##\] [0-9]##
+*>\[[0-9]##\]  + (stopped|suspended)*sleep*
+*>\[[0-9]##\]    continued*
+*>\[[0-9]##\]  + (stopped|suspended)*sleep*
+
+%clean
+
+  zmodload -ui zsh/zpty

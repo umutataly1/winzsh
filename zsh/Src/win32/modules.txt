@@ -1,0 +1,29 @@
+# Modules to be linked statically into the native Windows build of zsh.
+#
+# One module name per line; blank lines and #-comments are ignored.
+# The name must match the `name=' field of the corresponding .mdd file.
+
+zsh/main
+zsh/zle
+zsh/zleparameter
+zsh/complete
+zsh/complist
+zsh/computil
+zsh/compctl
+zsh/parameter
+zsh/param/private
+zsh/ksh93
+zsh/random
+zsh/hlgroup
+zsh/zutil
+zsh/sched
+zsh/rlimits
+zsh/watch
+zsh/datetime
+zsh/files
+zsh/mathfunc
+zsh/nearcolor
+zsh/stat
+zsh/system
+zsh/zselect
+zsh/example
