@@ -74,6 +74,14 @@ location.
      If you copy only zsh.exe, completion (compinit) will fail with
      "function definition file not found".
 
+     On Windows, install.bat in the top directory of the source tree
+     does the copy for you.  It asks for administrator rights, creates
+     C:\Program Files\zsh if it does not exist, and copies the contents
+     of build\install into it.  Run "./build.sh --install" first (or
+     use the build\install tree that came with the source), then run
+     install.bat, either by double-clicking it or from a terminal.
+     It does not modify PATH; do step b below yourself.
+
   b. Add the bin directory to your PATH:
 
        - Windows 11: Settings -> System -> About -> Advanced system

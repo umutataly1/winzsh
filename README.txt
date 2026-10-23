@@ -411,6 +411,11 @@ Copy the contents of build/install to C:\Program Files\zsh (or to the
 prefix you built for).  "make install" only stages files; it does not
 write to C:\ from Linux.
 
+On Windows, install.bat in the top directory of the tree does the copy:
+run it (or double-click it), approve the elevation prompt, and it
+creates C:\Program Files\zsh and copies build\install into it.  It does
+not change PATH; add C:\Program Files\zsh\bin yourself.
+
 To test the result under Wine:
 
   wine build/zsh.exe -f -c 'print -r -- $ZSH_VERSION'
