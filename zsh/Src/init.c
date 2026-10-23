@@ -1913,6 +1913,11 @@ zsh_main(UNUSED(int argc), char **argv)
 #endif
 #ifdef __MINGW32__
     /*
+     * Windows spells the search path "Path".  Make the name match what
+     * the parameter code expects before the environment is imported.
+     */
+    zsh_win32_fix_environ();
+    /*
      * Put the standard streams into the mode the shell wants before
      * anything writes to them: binary for pipes and files, and UTF-8
      * on a console.

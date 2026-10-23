@@ -112,6 +112,7 @@ void zsh_win32_multio_run(void);
  * the signal table and the state of the standard streams.
  */
 void zsh_win32_signal_init(void);
+void zsh_win32_fix_environ(void);
 void zsh_win32_init_console(void);
 int  zsh_win32_console_output_fd(void);
 int  zsh_win32_console_write(int fd, const void *buf, unsigned int n);

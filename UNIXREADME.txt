@@ -170,9 +170,13 @@ Two useful sanity checks at any time:
 4. Environment variables
 ------------------------
 
-  * Names are case-insensitive.  $PATH and $Path are the same
-    variable.  zsh keeps a single map, so exporting both spellings
-    does not create two variables.
+  * Windows treats environment variable names case-insensitively; zsh
+    does not.  The system search path is normally stored under the name
+    "Path", so the port renames that entry to "PATH" at startup, before
+    the environment is imported; $path then splits it on ";" as usual.
+    Other names are imported exactly as the environment spells them, so
+    $Path and $PATH are different parameters in zsh.  Use one spelling
+    consistently inside the shell.
 
   * Values use ";" as the separator for PATH, PATHEXT, and friends,
     not ":".  Do not assume ":" separates path lists anywhere except

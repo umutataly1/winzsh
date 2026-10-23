@@ -496,6 +496,32 @@ zsh_win32_fcntl(int fd, int cmd, ...)
 /* Environment							      */
 /* ------------------------------------------------------------------ */
 
+/*
+ * Windows environment variable names are case-insensitive, and the
+ * system search path is normally spelled "Path": that is the name under
+ * which it is stored in the registry.  zsh's parameter table is
+ * case-sensitive, and only its special PATH/path pair is used for
+ * command lookup, so an inherited "Path" leaves $PATH at the built-in
+ * default and the shell cannot find any external command.
+ *
+ * Rename the entry to "PATH" before the environment is imported.  The
+ * name has the same length, so writing over it in place is safe.
+ */
+void
+zsh_win32_fix_environ(void)
+{
+    char **e, **found = NULL;
+
+    for (e = environ; *e; e++) {
+	if (strncmp(*e, "PATH=", 5) == 0)
+	    return;			/* already canonical */
+	if (_strnicmp(*e, "PATH=", 5) == 0 && !found)
+	    found = e;
+    }
+    if (found)
+	memcpy(*found, "PATH=", 5);
+}
+
 /**/
 int
 setenv(const char *name, const char *value, int overwrite)
