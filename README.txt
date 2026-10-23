@@ -21,6 +21,53 @@ If you have never used zsh before, this is still a good shell to start
 with: it has tab completion, spelling correction, a powerful history,
 and a prompt you can customise down to the last character.
 
+Why switch to zsh
+-----------------
+
+If you are on Windows, you already have cmd.exe and probably PowerShell.
+Here is why you might want zsh instead, or alongside them.
+
+  vs. cmd.exe
+    cmd is fine for running programs, but its scripting language is
+    archaic: no arrays, no real functions, no local variables, no
+    arithmetic beyond basic integer math, no decent string handling,
+    and a quoting model that makes complex commands painful.  zsh gives
+    you a real programming language (arrays, associative arrays,
+    functions with local variables, floating point, regex, glob
+    qualifiers) while still letting you run every Windows program by
+    name.  Tab completion in zsh is also in a different league: it
+    completes commands, options, file names, git branches, and more,
+    with descriptions.
+
+  vs. ash / dash / busybox sh
+    ash (the Almquist shell, used by busybox and many embedded
+    systems) is fast and POSIX-compliant, but it is deliberately
+    minimal.  No arrays, no associative arrays, no advanced globbing,
+    no spell correction, no programmable completion, no prompt
+    customisation beyond the basics.  zsh is what you move to when you
+    outgrow ash.  If you only need a shell to run scripts, ash is
+    fine; if you want an interactive shell you actually enjoy using,
+    zsh is the answer.
+
+  vs. PowerShell
+    PowerShell is a genuinely good shell and a real programming
+    language, but it is its own thing: Verb-Noun cmdlets, object
+    pipelines, .NET types, and a syntax that does not resemble
+    anything from the Unix world.  If your work touches Linux, macOS,
+    containers, SSH sessions, or CI pipelines, you end up maintaining
+    two mental models.  zsh is the same shell everywhere: the same
+    .zshrc, the same key bindings, the same completion system, the
+    same scripts, on Windows and on Unix.  You also get the entire Unix
+    tool ecosystem (via busybox) with the same flags and output format
+    you are used to, instead of learning Get-ChildItem and
+    Select-String.
+
+  The honest summary
+    cmd is for running programs.  PowerShell is for administering
+    Windows.  zsh is for people who want a Unix shell that does not
+    require a Unix.  You do not have to pick one: many people keep
+    PowerShell for Windows administration and zsh for everything else.
+
 What "native" means here
 -------------------------
 
@@ -433,8 +480,16 @@ More information
 
   Version information: print -r -- $ZSH_VERSION
   Build documentation: Src/win32/README.md in the source tree
-  Known issues: see the "Known issues" section above
+  Known issues: see the "Known issues" section below
   Installation guide: INSTALLATION.txt
+  Tutorial for Windows users: TUTORIAL.txt
+  Guide for Unix users: UNIXREADME.txt
+
+The tutorial assumes you have never used a Unix shell.  The Unix guide
+assumes you have used one for years and only want to know what is
+different.  Read whichever one describes you; you will not need both.
+
+
 Known issues in zsh for Windows (native port)
 ============================================
 
@@ -481,6 +536,24 @@ than from the port.
 
   and INSTALLATION.txt section 5 gives the same lines for a real
   Windows install.  Omitting them is not a bug in the port.
+
+* Arrow keys and Backspace misbehave on some Windows versions
+  ----------------------------------------------------------
+  On older Windows (before Windows 10 1607) the console does not
+  support ENABLE_VIRTUAL_TERMINAL_PROCESSING or
+  ENABLE_VIRTUAL_TERMINAL_INPUT.  Without VT processing the escape
+  sequences the line editor sends are treated as literal text and the
+  display falls apart; without VT input the arrow keys may be delivered
+  as console events that the port cannot map.
+
+  The port now disables VT input entirely (it reads key events via
+  ReadConsoleInputW and maps VK codes to escape sequences itself) and
+  enables VT processing for output.  On Windows 10 1607 and later this
+  works correctly.  On older Windows the line editor will be limited.
+
+  If Backspace appears to move the cursor forward instead of deleting,
+  check that your .zshrc binds the editing keys (section above) and
+  that you are on a supported Windows version.
 
 * Wine's console does not understand escape sequences
   ---------------------------------------------------
@@ -533,8 +606,10 @@ than from the port.
 * Byte based string handling
   --------------------------
   There is no MULTIBYTE_SUPPORT, as in a Unix zsh built without
-  multibyte support.  UTF-8 input and output work and the line editor
-  handles UTF-8 text, but ${#string} counts bytes.
+  multibyte support.  UTF-8 output is passed through unchanged and is
+  correct, but string handling and line editing are byte based:
+  ${#string} counts bytes, and backspace at the end of a multi-byte
+  character removes one byte of it.
 
 * Tools with no Unix equivalent
   -----------------------------

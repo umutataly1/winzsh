@@ -46,12 +46,33 @@ location.
 3. Installing
 -------------
 
-  a. Copy the contents of the package (the bin and share directories)
-     to C:\Program Files\zsh, so that you end up with
+  a. Copy the contents of the package to C:\Program Files\zsh.  The
+     package is the contents of the "install" directory inside the build
+     tree.  After running "./build.sh --install" (or
+     "make -f Src/win32/Makefile ... install"), the files are staged at:
+
+       build/install/bin/zsh.exe
+       build/install/share/zsh/functions/...
+       build/install/share/zsh/site-functions/
+
+     Copy the CONTENTS of build/install (the bin and share folders)
+     into C:\Program Files\zsh, so that you end up with
 
        C:\Program Files\zsh\bin\zsh.exe
        C:\Program Files\zsh\share\zsh\functions\...
        C:\Program Files\zsh\share\zsh\site-functions\
+
+     The files you are copying are:
+
+       bin\zsh.exe                          the shell (1.7 MB)
+       share\zsh\functions\...              autoloadable shell functions
+       share\zsh\functions\Completion\...    the completion system
+       share\zsh\site-functions\            (empty, for your own functions)
+
+     Do NOT copy build\zsh.exe alone.  zsh.exe looks for its function
+     library relative to its own location, under ..\share\zsh\functions.
+     If you copy only zsh.exe, completion (compinit) will fail with
+     "function definition file not found".
 
   b. Add the bin directory to your PATH:
 
