@@ -76,8 +76,8 @@ static const struct zsh_cap zsh_caps[] = {
     { "ue",	"\033[24m" },
     /* ZR: leave italics mode */
     { "ZR",	"\033[23m" },
-    /* ch: move to an absolute column */
-    { "ch",	"\033[%p1%dG" },
+    /* ch: move to an absolute column (the argument is zero-based) */
+    { "ch",	"\033[%i%p1%dG" },
     /* ku: cursor up */
     { "ku",	"\033[A" },
     /* kd: cursor down */

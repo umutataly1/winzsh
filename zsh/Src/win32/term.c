@@ -135,7 +135,9 @@ zsh_win32_console_output_fd(void)
 	h = (HANDLE) _get_osfhandle(fd);
 	if (h != INVALID_HANDLE_VALUE && h != NULL &&
 	    GetConsoleMode(h, &mode))
-	    SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+	    SetConsoleMode(h, mode | ENABLE_PROCESSED_OUTPUT |
+			   ENABLE_WRAP_AT_EOL_OUTPUT |
+			   ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     }
     return fd;
 }
@@ -156,33 +158,11 @@ zsh_win32_console_write(int fd, const void *buf, unsigned int n)
 	GetConsoleMode(h, &(DWORD){ 0 })) {
 	int outfd = zsh_win32_console_output_fd();
 	if (outfd >= 0) {
-	    /* If this write starts a prompt (the OSC 133;P;k=i marker),
-	     * and the cursor is not at the start of a line, move to the
-	     * next line first so the prompt does not overwrite the
-	     * previous command's output. */
-	    if (n >= 14) {
-		const char *needle = "\033]133;A;";
-		int ni;
-		for (ni = 0; ni + 9 <= (int) n; ni++)
-		    if (memcmp((const char *) buf + ni, needle, 9) == 0)
-			break;
-		if (ni + 9 <= (int) n) {
-		    CONSOLE_SCREEN_BUFFER_INFO ci;
-		    HANDLE oh = GetStdHandle(STD_OUTPUT_HANDLE);
-		    if (oh != INVALID_HANDLE_VALUE && oh != NULL &&
-			GetConsoleScreenBufferInfo(oh, &ci) &&
-			ci.dwCursorPosition.X != 0) {
-			_write(outfd, "\r\n", 2);
-		    }
-		}
-	    }
-	    {
-		int ret = _write(outfd, buf, n);
-		int saved = errno;
-		_close(outfd);
-		errno = saved;
-		return ret;
-	    }
+	    int ret = _write(outfd, buf, n);
+	    int saved = errno;
+	    _close(outfd);
+	    errno = saved;
+	    return ret;
 	}
     }
     return _write(fd, buf, n);
@@ -254,6 +234,22 @@ zsh_win32_init_console(void)
     HANDLE hin = (HANDLE) _get_osfhandle(0);
     HANDLE hout = (HANDLE) _get_osfhandle(1);
 
+    /*
+     * Windows does not define TERM.  zsh needs a terminal description:
+     * without one it treats the console as a dumb terminal and zle
+     * falls back to single-line mode, in which the cursor keys are
+     * unbound and redrawing an edited line corrupts the display.  The
+     * termcap table built into this port implements xterm-256color, so
+     * use that name when the environment does not provide one.  Only do
+     * this for a process with a console on standard input, so that
+     * scripts reading a pipe or a file do not inherit an invented
+     * terminal type.
+     */
+    if ((!getenv("TERM") || !*getenv("TERM")) &&
+	hin != INVALID_HANDLE_VALUE && hin != NULL &&
+	GetConsoleMode(hin, &(DWORD){ 0 }))
+	setenv("TERM", "xterm-256color", 1);
+
     for (fd = 1; fd <= 2; fd++) {
 	HANDLE h = (HANDLE) _get_osfhandle(fd);
 	DWORD mode;
@@ -262,7 +258,9 @@ zsh_win32_init_console(void)
 	    continue;
 	if (!GetConsoleMode(h, &mode))
 	    continue;
-	SetConsoleMode(h, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+	SetConsoleMode(h, mode | ENABLE_PROCESSED_OUTPUT |
+			   ENABLE_WRAP_AT_EOL_OUTPUT |
+			   ENABLE_VIRTUAL_TERMINAL_PROCESSING);
     }
     /*
      * The shell speaks UTF-8, so a console has to use that code page for
@@ -437,6 +435,17 @@ zsh_console_fill_raw(HANDLE h)
 	k = &recs[i].Event.KeyEvent;
 	if (!k->bKeyDown)
 	    continue;
+	/*
+	 * Backspace arrives with uChar.UnicodeChar == '\b' as well as
+	 * VK_BACK.  Hand it to zle as DEL, which is what its keymap
+	 * binds to backward-delete-char; '\b' (^H) is a different key
+	 * in some keymaps and does nothing in vi mode.
+	 */
+	if (k->wVirtualKeyCode == VK_BACK) {
+	    if (len < (int) sizeof(console_inbuf))
+		console_inbuf[len++] = '\177';
+	    continue;
+	}
 	if (k->uChar.UnicodeChar) {
 	    len = zsh_console_putwc(k->uChar.UnicodeChar, len);
 	    continue;

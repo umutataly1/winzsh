@@ -606,8 +606,6 @@ unset_region_highlight(Param pm, int exp)
 static void
 tcoutclear(int cap)
 {
-    if (cap == TCCLEAREOL && getenv("ZDBG"))
-	fprintf(stderr, "ZDBG tcoutclear TCCLEAREOL at refreshline ln=%d (caller unknown)\\n", 0);
     treplaceattrs((cap == TCCLEAREOL) ? prompt_attr : 0);
     applytextattributes(0);
     tcout(cap);
@@ -2167,8 +2165,6 @@ moveto(int ln, int cl)
 {
     const REFRESH_ELEMENT *rep;
 
-    if (getenv("ZDBG"))
-	fprintf(stderr, "ZDBG moveto ln=%d cl=%d vln=%d vcs=%d vmaxln=%d winw=%d\\n", ln, cl, vln, vcs, vmaxln, winw);
     if (vcs == winw) {
 	vln++, vcs = 0;
 	if (!hasam) {

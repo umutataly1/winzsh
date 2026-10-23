@@ -345,18 +345,18 @@ Rules of thumb:
   * isatty(1) is true when stdout is a console, false when it is
     redirected or piped.  Scripts that check it keep working.
 
-  * $TERM is not synthesized by the port: it is whatever the
-    environment had, which on a stock Windows box is nothing.  zsh
-    itself does not care -- it uses a small hand-written capability
-    table compiled into the binary -- but every child program that
-    draws on the screen does.  Put
-
-        export TERM=xterm-256color
-
-    in .zshrc.  Windows Terminal understands xterm sequences, so this
-    is the honest value, and it is what less, vim and git expect.
-    Installing a Linux terminfo database helps the children; zsh
-    itself will not consult it.
+  * $TERM defaults to xterm-256color.  If the environment does not
+    supply one, the port sets it at startup, because zsh needs a
+    terminal description: with an empty $TERM the line editor falls
+    back to single-line mode, where the cursor keys are unbound and
+    redrawing an edited line corrupts the display.  Set $TERM yourself
+    if you need a different value.  zsh itself does not consult a
+    terminfo database -- it uses a small hand-written capability table
+    compiled into the binary -- but child programs that draw on the
+    screen do, and they expect TERM to be set.  Windows Terminal
+    understands xterm sequences, so this is the honest value, and it
+    is what less, vim and git expect.  Installing a Linux terminfo
+    database helps the children.
 
   * Colours: ANSI SGR sequences work in Windows Terminal and in conhost
     on Windows 10 1511 and later, because the port enables virtual
