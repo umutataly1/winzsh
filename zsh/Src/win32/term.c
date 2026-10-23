@@ -731,10 +731,12 @@ tcsetattr(int fd, int optional_actions, const struct termios *t)
 	mode |= ENABLE_PROCESSED_INPUT;
     else
 	mode &= ~ENABLE_PROCESSED_INPUT;
-    if (!(t->c_lflag & ICANON))
-	mode |= ENABLE_VIRTUAL_TERMINAL_INPUT;
-    else
-	mode &= ~ENABLE_VIRTUAL_TERMINAL_INPUT;
+    /*
+     * Disable VT input: the port reads key events via ReadConsoleInputW and
+     * maps VK codes to escape sequences itself.  Leaving VT input on makes
+     * the console deliver arrow keys etc. as text, which confuses our reader.
+     */
+    mode &= ~ENABLE_VIRTUAL_TERMINAL_INPUT;
     if (!SetConsoleMode(h, mode)) {
 	errno = ENOTTY;
 	return -1;
