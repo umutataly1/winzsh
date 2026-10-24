@@ -23,6 +23,8 @@ bcrypt.dll and the api-ms-win-crt-*.dll files.  There is no Visual C++
 redistributable to install, no DLL of ours to copy and no other package
 it depends on.
 
+NOTE: If you are lazy af, just run install.bat on windows and it (should) automatically install.
+      Now if you say you wanna be fancy and go hard way go ahead and continue reading this.
 
 2. What is in the package
 -------------------------

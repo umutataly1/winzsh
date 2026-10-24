@@ -1,6 +1,14 @@
 zsh for Windows - README
 =========================
 
+CREDITS TO Z SHELL
+------------------
+This is forked of from the offical zsh source code, without
+zsh and their developers this project woulduntve been possible.
+All original zsh copyright notices and applicable license terms are retained.
+winzsh is an independent community project porting z shell to windows 10-11
+THIS IS NOT AN OFFICAL RELEASE.
+
 What this is
 ------------
 
