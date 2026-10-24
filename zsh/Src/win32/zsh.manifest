@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <!--
+     Make UTF-8 the process ANSI code page (Windows 10 1903 and later;
+     older versions ignore this element).  The C runtime's console output
+     and the narrow Windows APIs (GetCommandLineA, GetEnvironmentStringsA,
+     WriteConsoleA and friends) all use CP_ACP to convert between bytes
+     and Unicode.  With this manifest CP_ACP is UTF-8, so the UTF-8 that
+     the shell produces and parses round-trips through them unchanged;
+     printing non-ASCII text on the console used to be decoded with the
+     system ANSI code page instead, producing double-encoded mojibake.
+  -->
+  <assemblyIdentity version="1.0.0.0" processorArchitecture="*"
+                    name="zsh.win32.zsh.exe" type="win32"/>
+  <windowsSettings>
+    <activeCodePage xmlns="http://schemas.microsoft.com/SMI/2019/WindowsSettings">UTF-8</activeCodePage>
+  </windowsSettings>
+</assembly>
