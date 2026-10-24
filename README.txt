@@ -9,6 +9,19 @@ All original zsh copyright notices and applicable license terms are retained.
 winzsh is an independent community project porting z shell to windows 10-11
 THIS IS NOT AN OFFICAL RELEASE.
 
+Requirements
+------------
+
+64-bit Windows 10 version 1607 (Anniversary Update) or later, or any
+Windows 11.  The interactive line editor depends on the virtual
+terminal processing that the Windows console gained in Windows 10
+1607; older Windows 10 builds (1507, 1511) are not supported.
+Printing non-ASCII characters additionally needs Windows 10 version
+1903 or later (any Windows 11): that is when Windows allows a program
+to declare UTF-8 as its process ANSI code page, which the shell does
+via its manifest; on earlier versions those characters are printed
+with the system ANSI code page and end up garbled.
+
 What this is
 ------------
 

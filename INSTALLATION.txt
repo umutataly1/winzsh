@@ -12,8 +12,16 @@ on top of Win32.
 1. Requirements
 ---------------
 
-  * 64-bit Windows 10 or Windows 11 (Windows Server 2016 or later also
-    works).
+  * 64-bit Windows 10 version 1607 (Anniversary Update) or later, or
+    any Windows 11 (Windows Server 2016 or later also works).  Older
+    Windows 10 releases (1507, 1511) are NOT supported: the line editor
+    needs the virtual terminal processing that the console gained in
+    Windows 10 1607.
+  * Printing non-ASCII characters (lambda, accented letters, CJK, ...)
+    looks right only on Windows 10 1903 or later (and on Windows 11),
+    where the port asks the process ANSI code page to be UTF-8.  On
+    earlier Windows 10 versions the shell runs, but those characters
+    are printed with the system ANSI code page and come out garbled.
   * The Universal C Runtime (UCRT), which is part of Windows 10 and 11.
   * About 10 MB of disk space.
   * Administrator rights only if you install into "C:\Program Files".
